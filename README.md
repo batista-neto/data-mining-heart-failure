@@ -7,3 +7,5 @@ python -m venv nome_da_vm
 
 # Bibliotecas necessárias
 pip3 install pandas
+pip3 install matplotlib
+pip3 install seaborn
