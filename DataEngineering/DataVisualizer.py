@@ -26,16 +26,21 @@ class DataVisualizer:
             plt.ylabel('Frequência')
             plt.show()
 
-    def plot_boxplots(self):
+    def plot_boxplots(self, columns):
         """
-        Plota boxplots de todas as colunas numéricas do dataset para identificar possíveis outliers.
+        Plota boxplots para as colunas especificadas no dataset.
+
+        :param columns: list, lista de nomes de colunas para as quais os boxplots serão gerados
         """
         if self.dataset is None:
             print("Nenhum dataset fornecido para visualização.")
             return
 
-        numeric_columns = self.dataset.select_dtypes(include=['number']).columns
-        for column in numeric_columns:
+        for column in columns:
+            if column not in self.dataset.columns:
+                print(f"A coluna '{column}' não existe no dataset.")
+                continue
+            
             plt.figure(figsize=(10, 6))
             sns.boxplot(x=self.dataset[column], color='orange')
             plt.title(f'Boxplot da Coluna: {column}')
