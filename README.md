@@ -9,3 +9,4 @@ python -m venv nome_da_vm
 pip3 install pandas
 pip3 install matplotlib
 pip3 install seaborn
+pip3 install scikit-learn
