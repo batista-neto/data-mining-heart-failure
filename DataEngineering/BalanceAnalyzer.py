@@ -140,9 +140,9 @@ class BalanceAnalyser:
         """
         results = []
 
-        for method, sampler in methods:
+        for method in methods:
             print(f"\n--- Avaliando com {method} ---")
-            X_train_balanced, y_train_balanced = sampler(X_train, y_train)
+            X_train_balanced, y_train_balanced = self.balance(X_train, y_train, method)
             result = self.evaluate_model_with_advanced_metrics(model, X_train_balanced, y_train_balanced, X_test, y_test, method)
             results.append(result)
 
