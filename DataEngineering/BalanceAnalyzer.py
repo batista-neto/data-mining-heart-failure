@@ -1,11 +1,9 @@
-import numpy as np
 import pandas as pd
-from imblearn.over_sampling import SMOTE
-from imblearn.under_sampling import RandomUnderSampler
-from imblearn.combine import SMOTETomek
+from imblearn.pipeline import Pipeline
+from sklearn.model_selection import cross_validate, StratifiedKFold
 import seaborn as sns
 import matplotlib.pyplot as plt
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, precision_recall_curve, auc, confusion_matrix
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, precision_recall_curve, auc, confusion_matrix, make_scorer
 
 
 class BalanceAnalyser:
@@ -14,11 +12,15 @@ class BalanceAnalyser:
         self.target_column = target_column
         self.balance_strategy = balance_strategy
         self.results = {}
+        self.X = self.dataset.drop(columns=[self.target_column])
+        self.y = self.dataset[self.target_column]
 
-    def balance(self, X_train, y_train, method):
+
+    def balance(self, method):
         smote = self.balance_strategy.balance_strategy(method)
-        X_resampled, y_resampled = smote.fit_resample(X_train, y_train)
-        return X_resampled, y_resampled
+        X_resampled, y_resampled = smote.fit_resample(self.X, self.y)
+        balanced_dataset = pd.concat([pd.DataFrame(X_resampled), pd.Series(y_resampled, name=self.target_column)], axis=1)
+        return balanced_dataset
 
     def evaluate_model(self, y_test, y_pred, method):
         accuracy = accuracy_score(y_test, y_pred)
@@ -26,28 +28,80 @@ class BalanceAnalyser:
         recall = recall_score(y_test, y_pred)
         f1 = f1_score(y_test, y_pred)
 
-        self.results[method] = {
-            'accuracy': accuracy,
-            'precision': precision,
-            'recall': recall,
-            'f1_score': f1
-        }
+        print(f"Resultados para {method}:")
+        print(f"Acurácia: {accuracy}")
+        print(f"Precisão: {precision}")
+        print(f"Recall: {recall}")
+        print(f"F1-Score: {f1}")
 
         return self.results[method]
 
+    def cross_val_evaluate(self, model, method, cv=5):
+        """
+        Realiza validação cruzada e avalia o modelo com diferentes métodos de balanceamento.
+        """
+        balance_strategy = self.balance_strategy.balance_strategy(method)
+
+        pipeline = Pipeline([
+            ('balance', balance_strategy),
+            ('model', model)
+        ])
+
+        scoring = {
+            'accuracy': make_scorer(accuracy_score),
+            'precision': make_scorer(precision_score, zero_division=1),
+            'recall': make_scorer(recall_score, zero_division=1),
+            'f1': make_scorer(f1_score, zero_division=1)
+        }
+
+        kfold = StratifiedKFold(n_splits=cv, shuffle=True, random_state=42)
+        scores = cross_validate(pipeline, self.X, self.y, cv=kfold, scoring=scoring)
+        self.evaluate_cross_val_scores(scores, method)
+
+    def evaluate_cross_val_scores(self, scores, method):
+        self.results[method] = {
+            "accuracy": scores['test_accuracy'].mean(),
+            "precision": scores['test_precision'].mean(),
+            "recall": scores['test_recall'].mean(),
+            "f1_score": scores['test_f1'].mean()
+        }
+
+        print(f"Resultados para {method}:")
+        print(f"Acurácia: {scores['test_accuracy'].mean():.2f}")
+        print(f"Precisão: {scores['test_precision'].mean():.2f}")
+        print(f"Recall: {scores['test_recall'].mean():.2f}")
+        print(f"F1-Score: {scores['test_f1'].mean():.2f}")
+
     def compare_strategies(self):
+        """
+        Compara as estratégias de balanceamento com base nas métricas de avaliação.
+        """
         if not self.results:
             print("Nenhum resultado disponível. Execute as estratégias primeiro.")
             return None
 
-        comparison = pd.DataFrame(self.results).T
-        print("Resultados comparativos:")
-        print(comparison)
+        weights = {'accuracy': 1, 'precision': 1, 'recall': 1, 'f1_score': 1}
+        best_methods = []
+        best_score = -1
 
-        best_strategy = comparison['f1_score'].idxmax()
-        print(f"Melhor estratégia: {best_strategy} com F1-Score {comparison['f1_score'].max():.2f}")
+        for method, metrics in self.results.items():
+            score = (metrics['accuracy'] * weights['accuracy'] +
+                    metrics['precision'] * weights['precision'] +
+                    metrics['recall'] * weights['recall'] +
+                    metrics['f1_score'] * weights['f1_score'])
 
-        return best_strategy
+            if score > best_score:
+                best_score = score
+                best_methods = [method]
+            elif score == best_score:
+                best_methods.append(method)
+
+        if len(best_methods) > 1:
+            print(f"Empate entre os seguintes métodos com pontuação {best_score:.2f}: {', '.join(best_methods)}")
+        else:
+            print(f"O melhor método é: {best_methods[0]} com pontuação {best_score:.2f}")
+
+        return best_methods
     
     def _plot_distribution(self, class_counts, title):
         """
@@ -80,74 +134,3 @@ class BalanceAnalyser:
 
         self._plot_distribution(class_counts, title)
 
-    def evaluate_model_with_advanced_metrics(self, model, X_train, y_train, X_test, y_test, method_name):
-        """
-        Treina e avalia o modelo em métricas avançadas: ROC-AUC, PR-AUC, e Matriz de Confusão.
-        """
-        # Treinar o modelo
-        model.fit(X_train, y_train)
-        y_pred = model.predict(X_test)
-        y_proba = model.predict_proba(X_test)[:, 1] if hasattr(model, "predict_proba") else None
-
-        # Métricas básicas
-        accuracy = accuracy_score(y_test, y_pred)
-        precision = precision_score(y_test, y_pred)
-        recall = recall_score(y_test, y_pred)
-        f1 = f1_score(y_test, y_pred)
-
-        # ROC-AUC
-        roc_auc = roc_auc_score(y_test, y_proba) if y_proba is not None else "N/A"
-
-        # PR-AUC
-        precision_vals, recall_vals, _ = precision_recall_curve(y_test, y_proba) if y_proba is not None else (None, None, None)
-        pr_auc = auc(recall_vals, precision_vals) if y_proba is not None else "N/A"
-
-        # Matriz de Confusão
-        cm = confusion_matrix(y_test, y_pred)
-
-        # Exibição de resultados
-        print(f"\n[{method_name}] - {model.__class__.__name__}")
-        print(f"Accuracy: {accuracy:.2f}")
-        print(f"Precision: {precision:.2f}")
-        print(f"Recall: {recall:.2f}")
-        print(f"F1-Score: {f1:.2f}")
-        print(f"ROC-AUC: {roc_auc if roc_auc != 'N/A' else 'N/A'}")
-        print(f"PR-AUC: {pr_auc if pr_auc != 'N/A' else 'N/A'}")
-        print("Confusion Matrix:")
-        print(cm)
-
-        # Visualizar a Matriz de Confusão
-        plt.figure(figsize=(6, 4))
-        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=["Não", "Sim"], yticklabels=["Não", "Sim"])
-        plt.title(f"Matriz de Confusão ({method_name} - {model.__class__.__name__})")
-        plt.xlabel("Previsto")
-        plt.ylabel("Verdadeiro")
-        plt.show()
-
-        return {
-            "method": method_name,
-            "accuracy": accuracy,
-            "precision": precision,
-            "recall": recall,
-            "f1_score": f1,
-            "roc_auc": roc_auc,
-            "pr_auc": pr_auc
-        }
-    
-    def compare_with_advanced_metrics(self, model, X_train, y_train, X_test, y_test, methods):
-        """
-        Compara as estratégias de balanceamento usando métricas avançadas.
-        """
-        results = []
-
-        for method in methods:
-            print(f"\n--- Avaliando com {method} ---")
-            X_train_balanced, y_train_balanced = self.balance(X_train, y_train, method)
-            result = self.evaluate_model_with_advanced_metrics(model, X_train_balanced, y_train_balanced, X_test, y_test, method)
-            results.append(result)
-
-        print("\nResultados comparados:")
-        for res in results:
-            print(f"{res['method']} - ROC-AUC: {res['roc_auc']}, PR-AUC: {res['pr_auc']}, F1-Score: {res['f1_score']}")
-
-        return results
