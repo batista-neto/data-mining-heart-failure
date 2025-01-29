@@ -7,7 +7,7 @@ class ModelStrategy:
         Retorna o modelo que será usando para as análises
         """
         if model_type == ModelsType.LogisticRegression.value:
-            model_type = LogisticRegression(random_state=42)
+            model_type = LogisticRegression(solver='liblinear', random_state=42)
         else:
             raise ValueError(f"Scaler '{model_type}' não é suportado.")
 
