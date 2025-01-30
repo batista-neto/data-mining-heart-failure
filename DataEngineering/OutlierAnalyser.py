@@ -1,81 +1,39 @@
-from readline import redisplay
-import pandas as pd
 import numpy as np
 from sklearn.preprocessing import FunctionTransformer, PowerTransformer
 from imblearn.pipeline import Pipeline
 from sklearn.model_selection import cross_validate
 from sklearn.metrics import make_scorer, accuracy_score, precision_score, recall_score, f1_score
+from Enums import OutliersRemovers
 
 class OutlierAnalyzer:
     """
     Classe para análise de outliers em um dataset.
     """
 
-    def __init__(self, dataset, target_column):
+    def __init__(self, dataset, target_column, outlier_detector_strategy, outliers_remover_strategy):
         """
         Inicializa a classe com um dataset.
         """
         self.dataset = dataset
         self.target_column = target_column
+        self.outlier_detector_strategy = outlier_detector_strategy
+        self.outlier_remover_strategy = outliers_remover_strategy
 
-    def detect_outliers_iqr(self):
+    def detect_outliers(self, outliers_detector_strategy):
         """
         Detecta outliers usando o método do Intervalo Interquartil (IQR) para todas as colunas numéricas.
         """
-        if self.dataset is None:
-            print("Nenhum dataset fornecido para análise de outliers.")
-            return {}
-
-        outliers = {}
-        numeric_columns = self.dataset.select_dtypes(include=['number']).columns
-
-        for column in numeric_columns:
-            Q1 = self.dataset[column].quantile(0.25)
-            Q3 = self.dataset[column].quantile(0.75)
-            IQR = Q3 - Q1
-            lower_bound = Q1 - 1.5 * IQR
-            upper_bound = Q3 + 1.5 * IQR
-
-            outlier_indices = self.dataset[(self.dataset[column] < lower_bound) | (self.dataset[column] > upper_bound)].index
-            outliers[column] = outlier_indices.tolist()
-
+        outliers_detector = self.outlier_detector_strategy.outliers_detector_strategy(outliers_detector_strategy)
+        outliers = outliers_detector(self.dataset)
+        for column, indices in outliers.items():
+            if indices:
+                print(f"Coluna '{column}' possui {len(indices)} outliers: {indices}")
         return outliers
 
-    def detect_outliers_zscore(self, threshold=3):
-        """
-        Detecta outliers usando o método do z-score para todas as colunas numéricas.
-        """
-        if self.dataset is None:
-            print("Nenhum dataset fornecido para análise de outliers.")
-            return {}
-
-        outliers = {}
-        numeric_columns = self.dataset.select_dtypes(include=['number']).columns
-
-        for column in numeric_columns:
-            z_scores = (self.dataset[column] - self.dataset[column].mean()) / self.dataset[column].std()
-            outlier_indices = self.dataset[(z_scores.abs() > threshold)].index
-            outliers[column] = outlier_indices.tolist()
-
-        return outliers
-    
-    def apply_log_transform(self):
-        log_transformer = FunctionTransformer(func=np.log1p, validate=True)
-        features = self.dataset.drop(columns=[self.target_column])
-        target = self.dataset[self.target_column]
-        transformed_features = log_transformer.transform(features)
-        transformed_dataset = pd.concat([pd.DataFrame(transformed_features, columns=features.columns), target.reset_index(drop=True)], axis=1)
+    def transform(self, outliers_remover_type):
+        outlier_remover = self.outlier_remover_strategy.outliers_remover_strategy(outliers_remover_type)
+        transformed_dataset = outlier_remover(self.dataset, self.target_column)
         return transformed_dataset
-
-    def apply_sqrt_transform(self):
-        sqrt_transformer = FunctionTransformer(func=np.sqrt, validate=True)
-        transformed_dataset = sqrt_transformer.transform(self.dataset)
-        return pd.DataFrame(transformed_dataset, columns=self.dataset.columns)
-
-    def apply_yejohnson_transform(self):
-        boxcox_transformer = PowerTransformer(method='yeo-johnson')
-        transformed_dataset = boxcox_transformer.fit_transform(self.dataset)
-        return pd.DataFrame(transformed_dataset, columns=self.dataset.columns)
     
     def evaluate_model(self, X, y, model, transformer):
         pipeline = Pipeline([
@@ -107,9 +65,9 @@ class OutlierAnalyzer:
         best_score = -1
 
         transformations = {
-            'Log Transformation': FunctionTransformer(func=np.log1p, validate=True),
-            'Sqrt Transformation': FunctionTransformer(func=np.sqrt, validate=True),
-            'Box-Cox Transformation': PowerTransformer(method='yeo-johnson')
+            OutliersRemovers.OutliersRemovers.LOGARITIMO.value: FunctionTransformer(func=np.log1p, validate=True),
+            OutliersRemovers.OutliersRemovers.RAIZ_QUADRADA.value: FunctionTransformer(func=np.sqrt, validate=True),
+            OutliersRemovers.OutliersRemovers.YEOJOHNSON.value: PowerTransformer(method='yeo-johnson')
         }
 
         X = self.dataset.drop(columns=[self.target_column])
