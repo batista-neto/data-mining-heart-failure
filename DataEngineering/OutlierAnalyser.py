@@ -1,9 +1,11 @@
 import numpy as np
 from sklearn.preprocessing import FunctionTransformer, PowerTransformer
-from imblearn.pipeline import Pipeline
-from sklearn.model_selection import cross_validate
+from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import make_scorer, accuracy_score, precision_score, recall_score, f1_score
 from Enums import OutliersRemovers
+from sklearn.base import clone
+import pandas as pd
+from Dictionaries.features_limits import features_limits
 
 class OutlierAnalyzer:
     """
@@ -35,26 +37,42 @@ class OutlierAnalyzer:
         transformed_dataset = outlier_remover(self.dataset, self.target_column)
         return transformed_dataset
     
-    def evaluate_model(self, X, y, model, transformer):
-        pipeline = Pipeline([
-            ('transform', transformer),
-            ('model', model)
-        ])
-        
+    def evaluate_model(self, X, y, model, transformer, cv=5):
         scoring = {
             'accuracy': make_scorer(accuracy_score),
             'precision': make_scorer(precision_score, zero_division=1),
             'recall': make_scorer(recall_score, zero_division=1),
-            'f1': make_scorer(f1_score, zero_division=1)
+            'f1_score': make_scorer(f1_score, zero_division=1)
         }
-        
-        scores = cross_validate(pipeline, X, y, cv=5, scoring=scoring)
-        return {
-            'accuracy': scores['test_accuracy'].mean(),
-            'precision': scores['test_precision'].mean(),
-            'recall': scores['test_recall'].mean(),
-            'f1_score': scores['test_f1'].mean()
-        }
+
+        kfold = StratifiedKFold(n_splits=cv, shuffle=True, random_state=42)
+        scores = {metric: [] for metric in scoring}
+
+        for train_index, test_index in kfold.split(X, y):
+            X_train, X_val = X.iloc[train_index], X.iloc[test_index]
+            y_train, y_val = y.iloc[train_index], y.iloc[test_index]
+
+            # Transformar os dados
+            X_train_transformed = transformer.fit_transform(X_train)
+            X_val_transformed = transformer.transform(X_val)
+
+            # Manter os nomes das características
+            X_train_scaled = pd.DataFrame(X_train_transformed, columns=X_train.columns)
+            X_val_scaled = pd.DataFrame(X_val_transformed, columns=X_val.columns)
+
+            # Treinar o modelo com os dados transformados e escalados
+            model_clone = clone(model)
+            model_clone.fit(X_train_scaled, y_train)
+
+            # Fazer previsões com os dados transformados e escalados
+            y_pred = model_clone.predict(X_val_scaled)
+
+            # Avaliar as métricas
+            for metric, scorer in scoring.items():
+                score = scorer._score_func(y_val, y_pred, **scorer._kwargs)
+                scores[metric].append(score)
+
+        return {metric: np.mean(values) for metric, values in scores.items()}
     
     def compare_transformations(self, model):
         """
@@ -74,7 +92,7 @@ class OutlierAnalyzer:
         y = self.dataset[self.target_column]
 
         for name, transformer in transformations.items():
-            score = self.evaluate_model(X, y, model, transformer)
+            score = self.evaluate_model(X, y, model, transformer, )
             weighted_score = (score['accuracy'] * weights['accuracy'] +
                             score['precision'] * weights['precision'] +
                             score['recall'] * weights['recall'] +
@@ -95,21 +113,27 @@ class OutlierAnalyzer:
 
         return best_transformations
 
-    def check_custom_limits(self, min_value, max_value, column):
+    def check_custom_limits(self):
         """
-        Verifica se os valores da coluna específica estão fora do intervalo definido por min_value e max_value.
+        Verifica se há valores absurdos no dataset com base nos limites definidos em features_limits.
         """
         if self.dataset is None:
             print("Nenhum dataset fornecido para análise de outliers.")
-            return []
+            return {}
 
-        # Verifica se a coluna existe no dataset
-        if column not in self.dataset.columns:
-            print(f"A coluna '{column}' não existe no dataset.")
-            return []
+        outliers_detected = {}
 
-        # Verifica se os valores estão fora do intervalo
-        outlier_indices = self.dataset[(self.dataset[column] < min_value) | (self.dataset[column] > max_value)].index
-        outliers = outlier_indices.tolist()
-        print(f"Coluna '{column}' possui {len(outliers)} outliers: {outliers}")
-        return outliers
+        for column, (min_value, max_value) in features_limits.items():
+            if column not in self.dataset.columns:
+                print(f"A coluna '{column}' não existe no dataset.")
+                continue
+            
+            # Identifica os índices com valores fora do intervalo aceitável
+            outlier_indices = self.dataset[(self.dataset[column] < min_value) | (self.dataset[column] > max_value)].index
+            outliers_list = outlier_indices.tolist()
+
+            if outliers_list:
+                print(f"Coluna '{column}' possui {len(outliers_list)} valores absurdos: {outliers_list}")
+                outliers_detected[column] = outliers_list
+
+        return outliers_detected

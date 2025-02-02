@@ -1,7 +1,9 @@
 from sklearn.model_selection import train_test_split
-from sklearn.pipeline import Pipeline
+from sklearn.base import clone
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, make_scorer
-from sklearn.model_selection import cross_validate, StratifiedKFold
+from sklearn.model_selection import StratifiedKFold
+import pandas as pd
+import numpy as np
 
 class DataScaler:
    def __init__(self, dataset, target_column, scaler_strategy):
@@ -29,15 +31,17 @@ class DataScaler:
         return X_train, X_val, X_test, y_train, y_val, y_test
 
 
-   def scale_data(self, X_train, X_val, X_test, method):
-       """
-       Aplica um metodo de escalonamento nos dados.
-       """
-       scaler = self.scaler_strategy.scale_strategy(method)
-       X_train_scaled = scaler.fit_transform(X_train)
-       X_val_scaled = scaler.transform(X_val)
-       X_test_scaled = scaler.transform(X_test)
-       return X_train_scaled, X_val_scaled, X_test_scaled
+   def scale_data(self, method):
+        """
+        Aplica um metodo de escalonamento nos dados e retorna o dataset inteiro escalado.
+        """
+        X = self.dataset.drop(columns=[self.target_column])
+        y = self.dataset[self.target_column]
+        scaler = self.scaler_strategy.scale_strategy(method)
+        X_scaled = scaler.fit_transform(X)
+        scaled_dataset = pd.DataFrame(X_scaled, columns=X.columns)
+        scaled_dataset[self.target_column] = y.values
+        return scaled_dataset
    
    def cross_val_evaluate(self, model, method, cv=5):
         """
@@ -47,35 +51,57 @@ class DataScaler:
         y = self.dataset[self.target_column]
 
         scaler = self.scaler_strategy.scale_strategy(method)
-        pipeline = Pipeline([
-            ('scaler', scaler),
-            ('model', model)
-        ])
-
         scoring = {
             'accuracy': make_scorer(accuracy_score),
-            'precision': make_scorer(precision_score),
-            'recall': make_scorer(recall_score),
-            'f1': make_scorer(f1_score)
+            'precision': make_scorer(precision_score, zero_division=1),
+            'recall': make_scorer(recall_score, zero_division=1),
+            'f1_score': make_scorer(f1_score, zero_division=1)
         }
 
         kfold = StratifiedKFold(n_splits=cv, shuffle=True, random_state=42)
-        scores = cross_validate(pipeline, X, y, cv=kfold, scoring=scoring)
-        self.evaluate_cross_val_scores(scores, method)
+        scores = {metric: [] for metric in scoring}
+
+        for train_index, test_index in kfold.split(X, y):
+            X_train, X_val = X.iloc[train_index], X.iloc[test_index]
+            y_train, y_val = y.iloc[train_index], y.iloc[test_index]
+
+            # Transformar apenas os dados de treino
+            X_train_scaled = scaler.fit_transform(X_train)
+            X_val_scaled = scaler.transform(X_val)
+
+            # Manter os nomes das características
+            X_train_scaled = pd.DataFrame(X_train_scaled, columns=X_train.columns)
+            X_val_scaled = pd.DataFrame(X_val_scaled, columns=X_val.columns)
+
+            # Treinar o modelo com os dados transformados
+            model_clone = clone(model)
+            model_clone.fit(X_train_scaled, y_train)
+
+            # Fazer previsões com os dados não transformados
+            y_pred = model_clone.predict(X_val_scaled)
+
+            # Avaliar as métricas
+            for metric, scorer in scoring.items():
+                score = scorer._score_func(y_val, y_pred, **scorer._kwargs)
+                scores[metric].append(score)
+
+        # Calcular a média das métricas
+        mean_scores = {metric: np.mean(values) for metric, values in scores.items()}
+        self.evaluate_cross_val_scores(mean_scores, method)
 
    def evaluate_cross_val_scores(self, scores, method):
         self.evaluation_results[method] = {
-            "accuracy": round(scores['test_accuracy'].mean(), 2),
-            "precision": round(scores['test_precision'].mean(), 2),
-            "recall": round(scores['test_recall'].mean(), 2),
-            "f1_score": round(scores['test_f1'].mean(), 2)
+            "accuracy": round(scores['accuracy'].mean(), 2),
+            "precision": round(scores['precision'].mean(), 2),
+            "recall": round(scores['recall'].mean(), 2),
+            "f1_score": round(scores['f1_score'].mean(), 2)
         }
 
         print(f"Resultados para {method}:")
-        print(f"Acurácia: {scores['test_accuracy'].mean():.2f}")
-        print(f"Precisão: {scores['test_precision'].mean():.2f}")
-        print(f"Recall: {scores['test_recall'].mean():.2f}")
-        print(f"F1-Score: {scores['test_f1'].mean():.2f}")
+        print(f"Acurácia: {scores['accuracy'].mean():.2f}")
+        print(f"Precisão: {scores['precision'].mean():.2f}")
+        print(f"Recall: {scores['recall'].mean():.2f}")
+        print(f"F1-Score: {scores['f1_score'].mean():.2f}")
   
    def evaluate_model(self, y_true, y_pred, method):
         """
