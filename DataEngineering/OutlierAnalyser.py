@@ -12,7 +12,7 @@ class OutlierAnalyzer:
     Classe para análise de outliers em um dataset.
     """
 
-    def __init__(self, dataset, target_column, outlier_detector_strategy, outliers_remover_strategy):
+    def __init__(self, outlier_detector_strategy, outliers_remover_strategy, dataset=None, target_column=None):
         """
         Inicializa a classe com um dataset.
         """
@@ -32,9 +32,15 @@ class OutlierAnalyzer:
                 print(f"Coluna '{column}' possui {len(indices)} outliers: {indices}")
         return outliers
 
-    def transform(self, outliers_remover_type):
+    def transform(self, outliers_remover_type, dataset=None, target_column=None):
+        if dataset is None:
+            dataset = self.dataset
+
+        if target_column is None:
+            target_column = self.target_column
+
         outlier_remover = self.outlier_remover_strategy.outliers_remover_strategy(outliers_remover_type)
-        transformed_dataset = outlier_remover(self.dataset, self.target_column)
+        transformed_dataset = outlier_remover(dataset, target_column)
         return transformed_dataset
     
     def evaluate_model(self, X, y, model, transformer, cv=5):
@@ -137,3 +143,43 @@ class OutlierAnalyzer:
                 outliers_detected[column] = outliers_list
 
         return outliers_detected
+    
+    def find_best_outlier_strategy(self, dataset, target_column, model):
+            print("Iniciando avaliação das estratégias de tratamento de outliers...")
+            weights = {'accuracy': 1, 'precision': 1, 'recall': 1, 'f1_score': 1}
+            best_removal_methods = []
+            best_score = -1
+
+            removal_methods = {
+                OutliersRemovers.OutliersRemovers.LOGARITIMO.value: FunctionTransformer(func=np.log1p, validate=True),
+                OutliersRemovers.OutliersRemovers.RAIZ_QUADRADA.value: FunctionTransformer(func=np.sqrt, validate=True),
+                OutliersRemovers.OutliersRemovers.YEOJOHNSON.value: PowerTransformer(method='yeo-johnson')
+            }
+
+            X = dataset.drop(columns=[target_column])
+            y = dataset[target_column]
+
+            for name, transformer in removal_methods.items():
+                print(f"Avaliando método de remoção de outliers: {name}")
+                score = self.evaluate_model(X, y, model, transformer)
+                weighted_score = (score['accuracy'] * weights['accuracy'] +
+                                score['precision'] * weights['precision'] +
+                                score['recall'] * weights['recall'] +
+                                score['f1_score'] * weights['f1_score'])
+
+                if weighted_score > best_score:
+                    best_score = weighted_score
+                    best_removal_methods = [name]
+                elif weighted_score == best_score:
+                    best_removal_methods.append(name)
+
+                print(f"{name} - Accuracy: {score['accuracy']:.4f}, Precision: {score['precision']:.4f}, Recall: {score['recall']:.4f}, F1-Score: {score['f1_score']:.4f}")
+
+            if len(best_removal_methods) > 1:
+                print(f"Empate entre as seguintes transformações com pontuação {best_score:.2f}: {', '.join(best_removal_methods)}")
+            else:
+                print(f"A melhor transformação é: {best_removal_methods[0]} com pontuação {best_score:.2f}")
+
+            print("Avaliação concluída. A melhor estratégia foi:", best_removal_methods[0])
+            dataset_transformed = self.transform(best_removal_methods[0], dataset, target_column)
+            return dataset_transformed
