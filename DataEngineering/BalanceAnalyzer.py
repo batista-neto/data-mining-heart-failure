@@ -7,18 +7,25 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 
 
 class BalanceAnalyser:
-    def __init__(self, dataset, target_column, balance_strategy):
+    def __init__(self, balance_strategy, dataset=None, target_column=None):
         self.dataset = dataset
         self.target_column = target_column
         self.balance_strategy = balance_strategy
         self.results = {}
-        self.X = self.dataset.drop(columns=[self.target_column])
-        self.y = self.dataset[self.target_column]
 
 
-    def balance(self, method):
-        smote = self.balance_strategy.balance_strategy(method)
-        X_resampled, y_resampled = smote.fit_resample(self.X, self.y)
+    def balance(self, dataset, target_column, method):
+        if dataset is None:
+            dataset = self.dataset
+
+        if target_column is None:
+            target_column = self.target_column
+
+        X = dataset.drop(columns=[target_column])
+        y = dataset[target_column]
+
+        balance = self.balance_strategy.balance_strategy(method)
+        X_resampled, y_resampled = balance.fit_resample(X, y)
         balanced_dataset = pd.concat([pd.DataFrame(X_resampled), pd.Series(y_resampled, name=self.target_column)], axis=1)
         return balanced_dataset
 
@@ -36,11 +43,20 @@ class BalanceAnalyser:
 
         return self.results[method]
 
-    def cross_val_evaluate(self, model, method, cv=5):
+    def cross_val_evaluate(self, dataset, target_column, model, method, cv=5):
         """
         Realiza validação cruzada e avalia o modelo com diferentes métodos de balanceamento.
         """
+        if dataset is None:
+            dataset = self.dataset
+
+        if target_column is None:
+            target_column = self.target_column
+
         balance_strategy = self.balance_strategy.balance_strategy(method)
+
+        X = dataset.drop(columns=[target_column])
+        y = dataset[target_column]
 
         pipeline = Pipeline([
             ('balance', balance_strategy),
@@ -55,7 +71,7 @@ class BalanceAnalyser:
         }
 
         kfold = StratifiedKFold(n_splits=cv, shuffle=True, random_state=42)
-        scores = cross_validate(pipeline, self.X, self.y, cv=kfold, scoring=scoring)
+        scores = cross_validate(pipeline, X, y, cv=kfold, scoring=scoring)
         self.evaluate_cross_val_scores(scores, method)
 
     def evaluate_cross_val_scores(self, scores, method):
@@ -133,4 +149,14 @@ class BalanceAnalyser:
         print(class_counts / class_counts.sum())
 
         self._plot_distribution(class_counts, title)
+    
+    def find_best_balancing_strategy(self, dataset, target_column, balance_types, model):
+            print("Iniciando avaliação das estratégias de balanceamento...")
+            for method in balance_types:
+                method_name = method.value
+                self.cross_val_evaluate(dataset, target_column, model, method_name)
+            best_methods = self.compare_strategies()
+            print("Avaliação concluída. O melhor étodo foi:", best_methods[0])
+            dataset_balanced = self.balance(dataset, target_column, best_methods[0])
+            return dataset_balanced
 
