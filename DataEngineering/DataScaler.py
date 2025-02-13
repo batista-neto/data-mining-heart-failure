@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 
 class DataScaler:
-   def __init__(self, dataset, target_column, scaler_strategy):
+   def __init__(self, scaler_strategy, dataset=None, target_column=None):
        """
        Inicializa a classe com o dataset e a coluna alvo (target).
        """
@@ -31,24 +31,36 @@ class DataScaler:
         return X_train, X_val, X_test, y_train, y_val, y_test
 
 
-   def scale_data(self, method):
+   def scale_data(self, method, dataset=None, target_column=None):
         """
         Aplica um metodo de escalonamento nos dados e retorna o dataset inteiro escalado.
         """
-        X = self.dataset.drop(columns=[self.target_column])
-        y = self.dataset[self.target_column]
+        if dataset is None:
+            dataset = self.dataset
+
+        if target_column is None:
+            target_column = self.target_column
+
+        X = dataset.drop(columns=[target_column])
+        y = dataset[target_column]
         scaler = self.scaler_strategy.scale_strategy(method)
         X_scaled = scaler.fit_transform(X)
         scaled_dataset = pd.DataFrame(X_scaled, columns=X.columns)
-        scaled_dataset[self.target_column] = y.values
+        scaled_dataset[target_column] = y.values
         return scaled_dataset
    
-   def cross_val_evaluate(self, model, method, cv=5):
+   def cross_val_evaluate(self, model, method, dataset=None, target_column=None, cv=5):
         """
         Realiza validação cruzada e avalia o modelo.
         """
-        X = self.dataset.drop(columns=[self.target_column])
-        y = self.dataset[self.target_column]
+        if dataset is None:
+            dataset = self.dataset
+
+        if target_column is None:
+            target_column = self.target_column
+
+        X = dataset.drop(columns=[target_column])
+        y = dataset[target_column]
 
         scaler = self.scaler_strategy.scale_strategy(method)
         scoring = {
@@ -148,5 +160,36 @@ class DataScaler:
             print(f"O melhor método é: {best_methods[0]} com pontuação {best_score:.2f}")
 
         return best_methods
+   
+   def find_best_scaling_strategy(self, dataset, target_column, scaler_types, model):
+        print("Iniciando avaliação das estratégias de escalonamento...")
+        weights = {'accuracy': 1, 'precision': 1, 'recall': 1, 'f1_score': 1}
+        best_methods = []
+        best_score = -1
+
+        for method in scaler_types:
+            method_name = method.value
+            self.cross_val_evaluate(model, method_name, dataset, target_column)
+            metrics = self.evaluation_results[method_name]
+            score = (metrics['accuracy'] * weights['accuracy'] +
+                    metrics['precision'] * weights['precision'] +
+                    metrics['recall'] * weights['recall'] +
+                    metrics['f1_score'] * weights['f1_score'])
+
+            if score > best_score:
+                best_score = score
+                best_methods = [method_name]
+            elif score == best_score:
+                best_methods.append(method_name)
+
+            print(f"{method_name} - Accuracy: {metrics['accuracy']:.2f}, Precision: {metrics['precision']:.2f}, Recall: {metrics['recall']:.2f}, F1-Score: {metrics['f1_score']:.2f}")
+
+        if len(best_methods) > 1:
+            print(f"Empate entre os seguintes métodos com pontuação {best_score:.2f}: {', '.join(best_methods)}")
+        else:
+            print(f"O melhor método é: {best_methods[0]} com pontuação {best_score:.2f}")
+
+        dataset_scaled = self.scale_data(best_methods[0], dataset, target_column)
+        return dataset_scaled
 
 
