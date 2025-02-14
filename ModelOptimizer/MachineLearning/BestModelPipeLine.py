@@ -5,6 +5,8 @@ import numpy as np
 from ModelOptimizer.Enums.Balances import BalanceTypes
 from ModelOptimizer.Enums.ModelsType import ModelsType
 from ModelOptimizer.Enums.Scalers import ScalerTypes
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 class BestModelPipeLine:
     def __init__(self, dataset, target_column, balance_analyser, data_scaler, outlier_analyzer, model_strategy):
@@ -41,47 +43,54 @@ class BestModelPipeLine:
                 score = scorer._score_func(y_val, y_pred, **scorer._kwargs)
                 scores[metric].append(score)
 
-        return {metric: np.mean(values) for metric, values in scores.items()}
+        return {metric: np.mean(values) for metric, values in scores.items()}, model_clone, X_val, y_val
     
     def run_pipeline(self):
-            best_score = -1
+        best_score = -1
 
-            # Teste de modelos
-            for model_type in ModelsType:
-                model_name = model_type.value
-                model = self.model_strategy.ModelStrategy(model_name)
-                print(f"Testando modelo {model_name}...")
+        for model_type in ModelsType:
+            model_name = model_type.value
+            model = self.model_strategy.ModelStrategy(model_name)
+            print(f"Testando modelo {model_name}...")
 
-                # Encontrar o melhor balanceamento
-                dataset_balanced, balance_method = self.balance_analyser.find_best_balancing_strategy(self.dataset, self.target_column, BalanceTypes, model)
-                
-                # Encontrar o melhor tratamento de outliers
-                dataset_transformed, transform_method = self.outlier_analyzer.find_best_outlier_strategy(dataset_balanced, self.target_column, model)
+            dataset_balanced, balance_method = self.balance_analyser.find_best_balancing_strategy(self.dataset, self.target_column, BalanceTypes, model)
+            dataset_transformed, transform_method = self.outlier_analyzer.find_best_outlier_strategy(dataset_balanced, self.target_column, model)
+            dataset_scaled, scaler_method = self.data_scaler.find_best_scaling_strategy(dataset_transformed, self.target_column, ScalerTypes, model)
 
-                # Encontrar a melhor normalização
-                dataset_scaled, scaler_method = self.data_scaler.find_best_scaling_strategy(dataset_transformed, self.target_column, ScalerTypes, model)
+            X_scaled = dataset_scaled.drop(columns=[self.target_column])
+            y_scaled = dataset_scaled[self.target_column]
+            scores, trained_model, X_val, y_val = self.evaluate_model(X_scaled, y_scaled, model)
 
-                # Avaliar o modelo final
-                X_scaled = dataset_scaled.drop(columns=[self.target_column])
-                y_scaled = dataset_scaled[self.target_column]
-                scores = self.evaluate_model(X_scaled, y_scaled, model)
+            weighted_score = scores['accuracy'] + scores['precision'] + scores['recall'] + scores['f1_score']
+            
+            print(f"Nota para o modelo {model_name} foi: {weighted_score}")
+            if weighted_score > best_score:
+                best_score = weighted_score
+                self.best_model = trained_model
+                self.best_strategy = (model_name, balance_method, transform_method, scaler_method)
+                self.best_X_val = X_val
+                self.best_y_val = y_val
 
-                # Calcular o escore ponderado
-                weighted_score = scores['accuracy'] + scores['precision'] + scores['recall'] + scores['f1_score']
-                
-                # Verificar se este é o melhor modelo
-                print(f"Nota para o modelo {model_name} foi: {weighted_score}")
-                if weighted_score > best_score:
-                    best_score = weighted_score
-                    self.best_model = model
-                    self.best_strategy = (model_name, balance_method, transform_method, scaler_method)  # Substitua com as estratégias reais usadas
+        print("Melhor estratégia encontrada:")
+        print(f"Modelo: {self.best_strategy[0]}")
+        print(f"Balanceamento: {self.best_strategy[1]}")
+        print(f"Transformacao: {self.best_strategy[2]}")
+        print(f"Scalonamento: {self.best_strategy[3]}")
+        print(f"Scores: {scores}")
 
-            print("Melhor estratégia encontrada:")
-            print(f"Modelo: {self.best_strategy[0]}")
-            print(f"Balanceamento: {self.best_strategy[1]}")
-            print(f"Transformacao: {self.best_strategy[2]}")
-            print(f"Scalonamento: {self.best_strategy[3]}")
-            # Imprimir as estratégias de balanceamento, outlier e escalonamento reais
-            print(f"Scores: {scores}")
-
-            return self.best_model, balance_method, transform_method, scaler_method
+        self.plot_results()
+        
+        return self.best_model, balance_method, transform_method, scaler_method
+    
+    def plot_results(self):
+        y_pred = self.best_model.predict(self.best_X_val)
+        
+        plt.figure(figsize=(8, 6))
+        sns.scatterplot(x=range(len(self.best_y_val)), y=self.best_y_val, label='Valores Reais', color='blue')
+        sns.scatterplot(x=range(len(self.best_y_val)), y=y_pred, label='Valores Preditos', color='red', marker='x')
+        
+        plt.xlabel("Amostras")
+        plt.ylabel("Valores")
+        plt.title("Comparação entre Valores Reais e Preditos")
+        plt.legend()
+        plt.show()
