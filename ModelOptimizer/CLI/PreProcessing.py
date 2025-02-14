@@ -13,7 +13,7 @@ from ModelOptimizer.Strategies.ScalerStrategy import ScalerStrategy
 from ModelOptimizer.Strategies.ModelStrategy import ModelStrategy
 from ModelOptimizer.MachineLearning.BestModelPipeLine import BestModelPipeLine
 
-def balance():
+def balance(dataset=None, target_column=None, method=None, output=None):
     """
     Faz balanceamento do dataset utilizando a classe BalanceAnalyzer.
     
@@ -24,30 +24,35 @@ def balance():
     """
 
     parser = argparse.ArgumentParser()
-    
-    parser.add_argument('--data', type=str, required=True, help='Caminho para o arquivo CSV do dataset')
-    parser.add_argument('--target', type=str, required=True, help='Nome da coluna alvo no dataset')
-    parser.add_argument('--method', type=str, required=True, help='Método de balanceamento a ser utilizado')
-    parser.add_argument('--output', type=str, default='dataset_balanced.csv', help='Nome do arquivo de saída')
-    
-    args = parser.parse_args()
+    if dataset is None or target_column is None or method is None:
+        parser = argparse.ArgumentParser(description="Balanceamento de dados")
+        parser.add_argument('--data', type=str, required=True, help='Caminho para o arquivo CSV do dataset')
+        parser.add_argument('--target', type=str, required=True, help='Nome da coluna alvo no dataset')
+        parser.add_argument('--method', type=str, required=True, help='Método de balanceamento a ser utilizado')
+        parser.add_argument('--output', type=str, default='dataset_balanced.csv', help='Nome do arquivo de saída')
+        args = parser.parse_args()
 
-    dataset = pd.read_csv(args.data)
+        dataset = args.data
+        target_column = args.target
+        method = args.method
+        output = args.output
+
+    dataset = pd.read_csv(dataset)
 
     print("Inicializando balanceamento...")
 
     balance_strategy = BalanceStrategy() 
 
-    balance_analyser = BalanceAnalyser(balance_strategy, dataset, args.target)
+    balance_analyser = BalanceAnalyser(balance_strategy, dataset,target_column)
 
-    balanced_data = balance_analyser.balance(args.method)
+    balanced_data = balance_analyser.balance(method)
 
-    balanced_data.to_csv(f"{args.output}.csv", index=False)
+    balanced_data.to_csv(f"{output}.csv", index=False)
 
     display(balanced_data.head())
 
 
-def transform():
+def transform(dataset=None, target_column=None, method=None, output=None):
     """
     Aplica a remoção de outliers no dataset utilizando a classe OutlierAnalyzer.
     
@@ -65,21 +70,30 @@ def transform():
 
     args = parser.parse_args()
 
-    dataset = pd.read_csv(args.data)
+    if dataset is None:
+        dataset = args.data
+    if target_column is None:
+        target_column = args.target
+    if method is None:
+        method = args.method
+    if output is None:
+        output = args.output
+
+    dataset = pd.read_csv(dataset)
 
     print("Inicializando transformação...")
 
     outlier_remover_strategy = OutlierRemoverStrategy()
     outlier_detector_strategy = OutlierDetectorStrategy()
 
-    analisador = OutlierAnalyzer(outlier_detector_strategy, outlier_remover_strategy, dataset, args.target)
-    dataset_transformado = analisador.transform(args.method)
+    analisador = OutlierAnalyzer(outlier_detector_strategy, outlier_remover_strategy, dataset, target_column)
+    dataset_transformado = analisador.transform(method)
 
-    dataset_transformado.to_csv(f"{args.output}.csv", index=False)  
+    dataset_transformado.to_csv(f"{output}.csv", index=False)  
 
     display(dataset_transformado.head())
 
-def scale():
+def scale(dataset=None, target_column=None, method=None, output=None):
     """
     Aplica um método de escalonamento nos dados e retorna o dataset inteiro escalado.
 
@@ -98,20 +112,29 @@ def scale():
 
     args = parser.parse_args()
 
-    dataset = pd.read_csv(args.data)
+    if dataset is None:
+        dataset = args.data
+    if target_column is None:
+        target_column = args.target
+    if method is None:
+        method = args.method
+    if output is None:
+        output = args.output
+
+    dataset = pd.read_csv(dataset)
 
     print("Inicializando escalonamento...")
 
     scaler_strategy = ScalerStrategy()
     data_scaler = DataScaler(scaler_strategy)
 
-    dataset_scaled = data_scaler.scale_data(args.method, dataset, args.target)
+    dataset_scaled = data_scaler.scale_data(method, dataset, target_column)
 
-    dataset_scaled.to_csv(f"{args.output}.csv", index=False)  
+    dataset_scaled.to_csv(f"{output}.csv", index=False)  
 
     display(dataset_scaled.head())
 
-def pipeline():
+def pipeline(dataset=None, target_column=None):
     """
     Executa o pipeline que retorna a combinção de modelo, balanceamento, trasformação e escalamento que melhor pontuou.
     :param dataset: DataFrame contendo os dados
@@ -125,7 +148,12 @@ def pipeline():
 
     args = parser.parse_args()
 
-    dataset = pd.read_csv(args.data)
+    if dataset is None:
+        dataset = args.data
+    if target_column is None:
+        target_column = args.target
+
+    dataset = pd.read_csv(dataset)
 
     balance_strategy = BalanceStrategy()
     balance_analyser = BalanceAnalyser(balance_strategy)
@@ -138,11 +166,11 @@ def pipeline():
     scaler_strategy = ScalerStrategy()
     data_scaler = DataScaler(scaler_strategy)
 
-    best_model = BestModelPipeLine(dataset, args.target, balance_analyser, data_scaler, outlier_analyzer, model_strategy)
+    best_model = BestModelPipeLine(dataset, target_column, balance_analyser, data_scaler, outlier_analyzer, model_strategy)
 
     best_model.run_pipeline()
 
-def treatment():
+def treatment(dataset=None, target_column=None, balance=None, transform=None, scale=None, output=None):
     """
     Faz balanceamento, tratamento de outlier e escalonamento, respectivamente, do dataset.
     
@@ -165,25 +193,38 @@ def treatment():
     
     args = parser.parse_args()
 
-    dataset = pd.read_csv(args.data)
+    if dataset is None:
+        dataset = args.data
+    if target_column is None:
+        target_column = args.target
+    if balance is None:
+        balance = args.balance
+    if transform is None:
+        transform = args.transform
+    if scale is None:
+        scale = args.scale
+    if output is None:
+        output = args.output
+
+    dataset = pd.read_csv(dataset)
 
     print("Inicializando balanceamento...")
     balance_strategy = BalanceStrategy() 
-    balance_analyser = BalanceAnalyser(balance_strategy, dataset, args.target)
-    balanced_data = balance_analyser.balance(args.balance)
+    balance_analyser = BalanceAnalyser(balance_strategy, dataset, target_column)
+    balanced_data = balance_analyser.balance(balance)
 
     print("Inicializando transformação...")
     outlier_remover_strategy = OutlierRemoverStrategy()
     outlier_detector_strategy = OutlierDetectorStrategy()
-    analisador = OutlierAnalyzer(outlier_detector_strategy, outlier_remover_strategy, balanced_data, args.target)
-    dataset_transformado = analisador.transform(args.transform)
+    analisador = OutlierAnalyzer(outlier_detector_strategy, outlier_remover_strategy, balanced_data, target_column)
+    dataset_transformado = analisador.transform(transform)
 
     print("Inicializando escalonamento...")
     scaler_strategy = ScalerStrategy()
     data_scaler = DataScaler(scaler_strategy)
-    dataset_scaled = data_scaler.scale_data(args.scale, dataset_transformado, args.target)
+    dataset_scaled = data_scaler.scale_data(scale, dataset_transformado, target_column)
 
-    dataset_scaled.to_csv(f"{args.output}.csv", index=False)
+    dataset_scaled.to_csv(f"{output}.csv", index=False)
 
     display(dataset_scaled.head())
 

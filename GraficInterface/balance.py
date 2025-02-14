@@ -1,7 +1,8 @@
 import tkinter as tk
 from tkinter import messagebox
 import threading
-from utils import select_file, run_command_with_output, load_columns
+from utils import select_file, load_columns
+from ModelOptimizer.CLI.PreProcessing import balance as balance_function  
 
 def balance(frame):
     """Cria a interface para a execução do balanceamento dentro de um frame."""
@@ -12,7 +13,9 @@ def balance(frame):
     balance_file_entry = tk.Entry(frame, width=50)
     balance_file_entry.pack(pady=5)
 
-    balance_file_button = tk.Button(frame, text="Selecionar Arquivo", command=lambda: select_file(balance_file_entry, lambda fp: load_columns(fp, column_var_balance, column_menu_balance)))
+    balance_file_button = tk.Button(frame, text="Selecionar Arquivo", 
+        command=lambda: select_file(balance_file_entry, 
+                                    lambda fp: load_columns(fp, column_var_balance, column_menu_balance)))
     balance_file_button.pack(pady=5)
 
     column_var_balance = tk.StringVar(frame)
@@ -50,12 +53,17 @@ def balance(frame):
             return
 
         output_text_balance.delete("1.0", tk.END)
+        output_text_balance.insert(tk.END, "EXECUTANDO...\n")
         output_text_balance.see(tk.END)
         frame.update_idletasks()
 
         def execute():
-            run_command_with_output(["balance", "--data", file_path, "--target", target_column, "--method", balance_method, "--output", output_file], output_text_balance)
-            output_text_balance.insert(tk.END, "EXECUTANDO...\n")
+            try:
+                balance_function(dataset=file_path, target_column=target_column, method=balance_method, output=output_file)
+                output_text_balance.insert(tk.END, "Balanceamento concluído com sucesso!\n")
+            except Exception as e:
+                output_text_balance.insert(tk.END, f"Erro: {str(e)}\n", "error")
+                print(f"Erro ao executar balanceamento: {e}")  # Log para depuração
 
         threading.Thread(target=execute, daemon=True).start()
 

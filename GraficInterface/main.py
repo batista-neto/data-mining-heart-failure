@@ -8,8 +8,14 @@ from scale import scale
 from transform import transform
 from balance import balance
 from treatment import treatment
+import sys
+import os
 
-# Suprimir warnings
+
+sys.path.append(os.path.abspath("/Users/develcode118/Documents/UFMA/Mineracao_dados/data-mining-heart-failure"))
+
+import ModelOptimizer  
+
 warnings.filterwarnings("ignore")
 os.environ["PYTHONWARNINGS"] = "ignore"
 
