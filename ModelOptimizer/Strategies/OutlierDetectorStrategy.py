@@ -1,5 +1,5 @@
-from Enums import OutliersDetectors
-from DataEngineering.OutliersDetector import OutliersDetector
+from ModelOptimizer.Enums import OutliersDetectors
+from ModelOptimizer.DataEngineering.OutliersDetector import OutliersDetector
 
 class OutlierDetectorStrategy:
     def outliers_detector_strategy(self, outliers_detector_type):

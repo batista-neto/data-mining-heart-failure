@@ -1,4 +1,4 @@
-from Enums import Balances
+from ModelOptimizer.Enums import Balances
 from imblearn.over_sampling import SMOTE
 from imblearn.under_sampling import RandomUnderSampler
 from imblearn.combine import SMOTETomek

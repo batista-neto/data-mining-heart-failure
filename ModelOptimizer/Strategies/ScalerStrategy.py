@@ -1,5 +1,5 @@
 from sklearn.preprocessing import MinMaxScaler, StandardScaler, RobustScaler, MaxAbsScaler, Normalizer
-from Enums import Scalers
+from ModelOptimizer.Enums import Scalers
 
 class ScalerStrategy:
     def scale_strategy(self, scaler_type):

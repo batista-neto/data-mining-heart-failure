@@ -2,10 +2,10 @@ import numpy as np
 from sklearn.preprocessing import FunctionTransformer, PowerTransformer
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import make_scorer, accuracy_score, precision_score, recall_score, f1_score
-from Enums import OutliersRemovers
+from ModelOptimizer.Enums import OutliersRemovers
 from sklearn.base import clone
 import pandas as pd
-from Dictionaries.features_limits import features_limits
+from ModelOptimizer.Dictionaries.features_limits import features_limits
 
 class OutlierAnalyzer:
     """
@@ -182,4 +182,4 @@ class OutlierAnalyzer:
 
             print("Avaliação concluída. A melhor estratégia foi:", best_removal_methods[0])
             dataset_transformed = self.transform(best_removal_methods[0], dataset, target_column)
-            return dataset_transformed
+            return dataset_transformed, best_removal_methods[0]

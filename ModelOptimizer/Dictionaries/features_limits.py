@@ -1,4 +1,4 @@
-from Enums.ColunsDatasetColuns import DatasetColuns
+from ModelOptimizer.Enums.ColunsDatasetColuns import DatasetColuns
 #Valores considerados como normais para cada medição
 features_limits = { 
     DatasetColuns.creatinine_phosphokinase.value: (10, 20000),

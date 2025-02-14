@@ -158,5 +158,5 @@ class BalanceAnalyser:
             best_methods = self.compare_strategies()
             print("Avaliação concluída. O melhor étodo foi:", best_methods[0])
             dataset_balanced = self.balance(best_methods[0], dataset, target_column)
-            return dataset_balanced
+            return dataset_balanced, best_methods[0]
 

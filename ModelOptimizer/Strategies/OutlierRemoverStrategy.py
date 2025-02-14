@@ -1,5 +1,5 @@
-from Enums import OutliersRemovers
-from DataEngineering.OutliersRemover import OutliersRemove
+from ModelOptimizer.Enums import OutliersRemovers
+from ModelOptimizer.DataEngineering.OutliersRemover import OutliersRemove
 
 class OutlierRemoverStrategy:
     def outliers_remover_strategy(self, outliers_remover_type):

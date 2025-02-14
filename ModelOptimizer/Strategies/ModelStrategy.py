@@ -3,7 +3,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 from xgboost import XGBClassifier
-from Enums.ModelsType import ModelsType
+from ModelOptimizer.Enums.ModelsType import ModelsType
 
 class ModelStrategy:
     def ModelStrategy(self, model_type):

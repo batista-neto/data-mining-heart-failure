@@ -190,6 +190,6 @@ class DataScaler:
             print(f"O melhor método é: {best_methods[0]} com pontuação {best_score:.2f}")
 
         dataset_scaled = self.scale_data(best_methods[0], dataset, target_column)
-        return dataset_scaled
+        return dataset_scaled, best_methods[0]
 
 
