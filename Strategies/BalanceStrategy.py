@@ -15,6 +15,6 @@ class BalanceStrategy:
         elif balance_type == Balances.BalanceTypes.SMOTETomek.value:
             balance = SMOTETomek(random_state=42)
         else:
-            raise ValueError(f"Scaler '{balance_type}' não é suportado.")
+            raise ValueError(f"Balancer '{balance_type}' não é suportado.")
 
         return balance

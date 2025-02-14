@@ -14,7 +14,7 @@ class BalanceAnalyser:
         self.results = {}
 
 
-    def balance(self, dataset, target_column, method):
+    def balance(self, method, dataset=None, target_column=None):
         if dataset is None:
             dataset = self.dataset
 
@@ -43,7 +43,7 @@ class BalanceAnalyser:
 
         return self.results[method]
 
-    def cross_val_evaluate(self, dataset, target_column, model, method, cv=5):
+    def cross_val_evaluate(self, model, method, dataset=None, target_column=None, cv=5):
         """
         Realiza validação cruzada e avalia o modelo com diferentes métodos de balanceamento.
         """
@@ -154,9 +154,9 @@ class BalanceAnalyser:
             print("Iniciando avaliação das estratégias de balanceamento...")
             for method in balance_types:
                 method_name = method.value
-                self.cross_val_evaluate(dataset, target_column, model, method_name)
+                self.cross_val_evaluate(model, method_name, dataset, target_column)
             best_methods = self.compare_strategies()
             print("Avaliação concluída. O melhor étodo foi:", best_methods[0])
-            dataset_balanced = self.balance(dataset, target_column, best_methods[0])
+            dataset_balanced = self.balance(best_methods[0], dataset, target_column)
             return dataset_balanced
 
