@@ -170,7 +170,7 @@ def pipeline(dataset=None, target_column=None):
 
     best_model.run_pipeline()
 
-def treatment(dataset=None, target_column=None, balance=None, transform=None, scale=None, output=None):
+def treatment(dataset=None, target_column=None, balance=None, transform=None, scale=None, output="output.csv"):
     """
     Faz balanceamento, tratamento de outlier e escalonamento, respectivamente, do dataset.
     
@@ -183,27 +183,20 @@ def treatment(dataset=None, target_column=None, balance=None, transform=None, sc
     """
 
     parser = argparse.ArgumentParser()
-    
-    parser.add_argument('--data', type=str, required=True, help='Caminho para o arquivo CSV do dataset')
-    parser.add_argument('--target', type=str, required=True, help='Nome da coluna alvo no dataset')
-    parser.add_argument('--balance', type=str, required=True, help='Método de balanceamento a ser utilizado')
-    parser.add_argument('--transform', type=str, required=True, help='Método de transformacao a ser utilizado')
-    parser.add_argument('--scale', type=str, required=True, help='Método de escalonamento a ser utilizado')
-    parser.add_argument('--output', type=str, default='dataset_treatment.csv', help='Nome do arquivo de saída')
-    
-    args = parser.parse_args()
-
-    if dataset is None:
+    if dataset is None or target_column is None or balance is None or transform is None or scale is None:
+        parser.add_argument('--data', type=str, required=True, help='Caminho para o arquivo CSV do dataset')
+        parser.add_argument('--target', type=str, required=True, help='Nome da coluna alvo no dataset')
+        parser.add_argument('--balance', type=str, required=True, help='Método de balanceamento a ser utilizado')
+        parser.add_argument('--transform', type=str, required=True, help='Método de transformacao a ser utilizado')
+        parser.add_argument('--scale', type=str, required=True, help='Método de escalonamento a ser utilizado')
+        parser.add_argument('--output', type=str, default='dataset_treatment.csv', help='Nome do arquivo de saída')
+        
+        args = parser.parse_args()
         dataset = args.data
-    if target_column is None:
         target_column = args.target
-    if balance is None:
         balance = args.balance
-    if transform is None:
         transform = args.transform
-    if scale is None:
         scale = args.scale
-    if output is None:
         output = args.output
 
     dataset = pd.read_csv(dataset)
@@ -227,6 +220,7 @@ def treatment(dataset=None, target_column=None, balance=None, transform=None, sc
     dataset_scaled.to_csv(f"{output}.csv", index=False)
 
     display(dataset_scaled.head())
+    return dataset_scaled
 
 if __name__ == "__main__":
     import sys
